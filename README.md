@@ -1,130 +1,409 @@
-# expo-firebase-starter 🔥
+import { useState, useEffect } from "react"
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, CheckBox } from "react-native"
+import { useAuth } from "../context/AuthContext"
+import { useNavigation } from "@react-navigation/native"
+import { LinearGradient } from "expo-linear-gradient"
+import { Ionicons } from "@expo/vector-icons"
+import * as SecureStore from "expo-secure-store"
 
-![Supports Expo iOS](https://img.shields.io/badge/iOS-4630EB.svg?style=flat-square&logo=APPLE&labelColor=999999&logoColor=fff)
-![Supports Expo Android](https://img.shields.io/badge/Android-4630EB.svg?style=flat-square&logo=ANDROID&labelColor=A4C639&logoColor=fff)
-[![runs with Expo Go](https://img.shields.io/badge/Runs%20with%20Expo%20Go-4630EB.svg?style=flat-square&logo=EXPO&labelColor=f3f3f3&logoColor=000)](https://expo.dev/client)
+export default function LoginScreen() {
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const { login, isLoggedIn } = useAuth()
+  const navigation = useNavigation()
 
-Is a quicker way to start with Expo + Firebase (using JS SDK) projects. It includes:
+  useEffect(() => {
+    // Check if credentials are stored and auto-fill them
+    const loadStoredCredentials = async () => {
+      const storedUsername = await SecureStore.getItemAsync("username")
+      const storedPassword = await SecureStore.getItemAsync("password")
 
-- based on Expo SDK `50`
-- navigation using `react-navigation` 6.x.x
-- Firebase JS SDK v9
-- Firebase as the backend for email auth
-- custom and reusable components
-- custom hook to toggle password field visibility on a TextInput
-- handles server errors using Formik
-- Login, Signup & Password Reset form built using Formik & yup
-- show/hide the Password Field's visibility 👁
-- uses a custom Provider using Context API & Firebase's `onAuthStateChanged` handler to check the user's auth state with
-- handles Forgot Password Reset using the Firebase email method
-- uses [Expo Vector Icons](https://icons.expo.fyi/)
-- uses [KeyboardAwareScrollView](https://github.com/APSL/react-native-keyboard-aware-scroll-view) package to handle keyboard appearance and automatically scrolls to focused TextInput
-- uses `dotenv` and `expo-constants` packages to manage environment variables (so that they are not exposed on public repositories)
-- all components are now functional components and use [React Hooks](https://reactjs.org/docs/hooks-intro.html)
+      if (storedUsername && storedPassword) {
+        setUsername(storedUsername)
+        setPassword(storedPassword)
+        setRememberMe(true)
+      }
+    }
 
-## Installation
+    loadStoredCredentials()
 
-1. Create a new project using the firebase starter template.
+    if (isLoggedIn) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Dashboard" }],
+      })
+    }
+  }, [isLoggedIn, navigation])
 
-```bash
-npx create-react-native-app --template https://github.com/expo-community/expo-firebase-starter
-```
+  const handleLogin = async () => {
+    if (!username || !password) {
+      setError("Please enter both username and password")
+      return
+    }
 
-2. Rename the file `example.env` to `.env`
-3. Update `.env` with your own configuration, e.g.:
+    setIsLoading(true)
+    setError("")
 
-```shell
-# Rename this file to ".env" before use
-# Replace XXXX's with your own Firebase config keys
-API_KEY=XXXX
-AUTH_DOMAIN=XXXX
-PROJECT_ID=XXXX
-STORAGE_BUCKET=XXXX
-MESSAGING_SENDER_ID=XXXX
-APP_ID=XXXX
-```
+    try {
+      await login(username, password)
 
-## Run project
+      // Save credentials securely if "Remember Me" is checked
+      if (rememberMe) {
+        await SecureStore.setItemAsync("username", username)
+        await SecureStore.setItemAsync("password", password)
+      } else {
+        await SecureStore.deleteItemAsync("username")
+        await SecureStore.deleteItemAsync("password")
+      }
 
-To start the development server and run your project:
+      // Navigate to the Dashboard after successful login
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Dashboard" }],
+      })
+    } catch (error) {
+      setError("Invalid username or password")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-```
-npx expo start
-```
+  return (
+    <LinearGradient colors={["#111827", "#000000"]} style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Ionicons name="airplane" size={40} color="#ef4444" />
+          <Text style={styles.title}>Aviator Predictor</Text>
+          <Text style={styles.subtitle}>Login to access predictions for BetPawa</Text>
+        </View>
 
-Alternate to using Expo Go, if you are building more than a hobby project or a prototype, make sure you [create a development build](https://docs.expo.dev/develop/development-builds/introduction/). You can either [locally compile your project](https://docs.expo.dev/guides/local-app-development/#local-builds-with-expo-dev-client) or [use EAS](https://docs.expo.dev/develop/development-builds/create-a-build/).
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Username</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your username"
+              placeholderTextColor="#9ca3af"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+          </View>
 
-To locally compile your app, run:
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor="#9ca3af"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-```
-# Build native Android project
-npx expo run:android
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-# Build native iOS project
-npx expo run:ios
-```
+          <View style={styles.checkboxContainer}>
+            <CheckBox
+              value={rememberMe}
+              onValueChange={setRememberMe}
+              color="#ef4444"
+            />
+            <Text style={styles.checkboxLabel}>Remember Me</Text>
+          </View>
 
-## File Structure
+          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading}>
+            {isLoading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.buttonText}>Login</Text>}
+          </TouchableOpacity>
 
-```shell
-Expo Firebase Starter
-├── assets ➡️ All static assets, includes app logo
-├── components ➡️ All re-suable UI components for form screens
-│   └── Button.js ➡️ Custom Button component using Pressable, comes with two variants and handles opacity
-│   └── TextInput.js ➡️ Custom TextInput component that supports left and right cons
-│   └── Icon.js ➡️ Icon component
-│   └── FormErrorMessage.js ➡️ Component to display server errors from Firebase
-│   └── LoadingIndicator.js ➡️ Loading indicator component
-│   └── Logo.js ➡️ Logo component
-│   └── View.js ➡️ Custom View component that supports safe area views
-├── hooks ➡️ All custom hook components
-│   └── useTogglePasswordVisibility.js ➡️ A custom hook that toggles password visibility on a TextInput component on a confirm password field
-├── config ➡️ All configuration files
-│   └── firebase.js ➡️ Configuration file to initialize firebase with firebaseConfig and auth
-│   └── images.js ➡️ Require image assets, reusable values across the app
-│   └── theme.js ➡️ Default set of colors, reusable values across the app
-├── providers ➡️ All custom providers that use React Context API
-│   └── AuthenticatedUserProvider.js ➡️ An Auth User Context component that shares Firebase user object when logged-in
-├── navigation
-│   └── AppStack.js ➡️ Protected routes such as Home screen
-│   └── AuthStack.js ➡️ Routes such as Login screen, when the user is not authenticated
-│   └── RootNavigator.js ➡️ Switch between Auth screens and App screens based on Firebase user logged-in state
-├── screens
-│   └── ForgotPassword.js ➡️ Forgot Password screen component
-│   └── HomeScreen.js ➡️ Protected route/screen component
-│   └── LoginScreen.js ➡️ Login screen component
-│   └── SignupScreen.js ➡️ Signup screen component
-├── App.js ➡️ Entry Point for Mobile apps, wrap all providers here
-├── app.config.js ➡️ Expo config file
-└── babel.config.js ➡️ Babel config (should be using `babel-preset-expo`)
-```
+          <View style={styles.registerLinkContainer}>
+            <Text style={styles.registerText}>Don't have an account?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+              <Text style={styles.registerLink}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </LinearGradient>
+  )
+}
 
-## Screens
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 400,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "white",
+    marginTop: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#9ca3af",
+    marginTop: 8,
+  },
+  form: {
+    backgroundColor: "#1f2937",
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "white",
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "#374151",
+    borderRadius: 8,
+    padding: 12,
+    color: "white",
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: "#ef4444",
+    borderRadius: 8,
+    padding: 15,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorText: {
+    color: "#ef4444",
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  checkboxLabel: {
+    color: "white",
+    marginLeft: 8,
+  },
+  registerLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  registerText: {
+    color: "#9ca3af",
+    fontSize: 14,
+  },
+  registerLink: {
+    color: "#ef4444",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 5,
+  },
+})"use client"
 
-Main screens:
+import { useState, useEffect } from "react"
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from "react-native"
+import { useAuth } from "../context/AuthContext"
+import { useNavigation } from "@react-navigation/native"
+import { LinearGradient } from "expo-linear-gradient"
+import { Ionicons } from "@expo/vector-icons"
 
-- Login
-- Signup
-- Forgot password
-- Home (Bare Minimum) with a logout button
+export default function LoginScreen() {
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const { login, isLoggedIn } = useAuth()
+  const navigation = useNavigation()
 
-<img src="./screenshots/img1.png" height="640" alt="Login screen with validation">
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Dashboard" as never }],
+      })
+    }
+  }, [isLoggedIn, navigation])
 
-<img src="./screenshots/img2.png" height="640" alt="Successful sign up attempt">
+  const handleLogin = async () => {
+    if (!username || !password) {
+      setError("Please enter both username and password")
+      return
+    }
 
-<img src="./screenshots/img3.png" height="640" alt="Forgot password screen">
+    setIsLoading(true)
+    setError("")
 
-<img src="./screenshots/img4.png" height="640" alt="Validation on Signup screens">
+    try {
+      await login(username, password)
+      // Navigation will happen automatically due to the useEffect
+    } catch (error) {
+      setError("Invalid username or password")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-## Development builds and React Native Firebase library
+  return (
+    <LinearGradient colors={["#111827", "#000000"]} style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Ionicons name="airplane" size={40} color="#ef4444" />
+          <Text style={styles.title}>Aviator Predictor</Text>
+          <Text style={styles.subtitle}>Login to access predictions for BetPawa</Text>
+        </View>
 
-This project uses Firebase JS SDK, which doesn't support all services (such as Crashlytics, Dynamic Links, and Analytics). However, you can use the `react-native-firebase` library in an Expo project by [creating a development build](https://docs.expo.dev/develop/development-builds/introduction/).
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Username</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your username"
+              placeholderTextColor="#9ca3af"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+          </View>
 
-Both of these libraries can satisfy different project requirements. To learn about the differences between using Firebase JS SDK and React Native Firebase library when building your app with Expo, see the following sections from Expo's official documentation:
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor="#9ca3af"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-- [When to use Firebase JS SDK](https://docs.expo.dev/guides/using-firebase/#when-to-use-firebase-js-sdk)
-- [When to use React Native Firebase](https://docs.expo.dev/guides/using-firebase/#when-to-use-react-native-firebase)
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
----
+          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading}>
+            {isLoading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.buttonText}>Login</Text>}
+          </TouchableOpacity>
 
-<strong>Built with 💜 by [@amanhimself](https://twitter.com/amanhimself)</strong>
+          <View style={styles.registerLinkContainer}>
+            <Text style={styles.registerText}>Don't have an account?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Register" as never)}>
+              <Text style={styles.registerLink}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </LinearGradient>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 400,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "white",
+    marginTop: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#9ca3af",
+    marginTop: 8,
+  },
+  form: {
+    backgroundColor: "#1f2937",
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "white",
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "#374151",
+    borderRadius: 8,
+    padding: 12,
+    color: "white",
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: "#ef4444",
+    borderRadius: 8,
+    padding: 15,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorText: {
+    color: "#ef4444",
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  registerLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  registerText: {
+    color: "#9ca3af",
+    fontSize: 14,
+  },
+  registerLink: {
+    color: "#ef4444",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 5,
+  },
+})
